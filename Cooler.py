@@ -37,6 +37,9 @@ class Cooler:
 
 def main():
     CKT1 = Cooler('1')
+    
+    
     print(CKT1.PV.Value)
 
 main()
+
