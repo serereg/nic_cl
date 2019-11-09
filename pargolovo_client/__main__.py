@@ -2,21 +2,47 @@ import asyncio
 import functools
 import collections
 
-# import OpenOPC
-# import pywintypes
+
+import sys
+import os
+sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
+from Cooler import Cooler
+#from ../../srv/pargolovo_server/ajax_sample import Cooler
+
+
+import OpenOPC
+import pywintypes
 from aiohttp import ClientSession
 from loguru import logger
 
 
 class OPC:
-
     def __init__(self, base_name, items):
         self.base_name = base_name
         self.items = items
+        self.coolers_arr = [Cooler(c) for c in range(1, 13)]
+        # self.coolers_arr = [Cooler(1), Cooler(2), Cooler(3), Cooler(4), Cooler(5), Cooler(6), Cooler(7), Cooler(8), Cooler(9), Cooler(10), Cooler(11), Cooler(12)]
+        # Connect to OPC
+        pywintypes.datetime=pywintypes.TimeType
+        self.opc = OpenOPC.client()
+        self.opc.connect(base_name)
 
     async def get_temperature(self, index):
-        import random
-        return random.randint(-20, 20)
+        # import random
+        values = 123
+        try:
+            for c in range(1, 13):
+                #print(self.coolers_arr[c].name)
+                if self.coolers_arr[c].name == index:
+                    #print(self.coolers_arr[c].pv.TagName)
+                    opc_package = self.opc.read(self.coolers_arr[c].pv.TagName)
+                    values = opc_package[0]  # self.coo.GetPV()  # str(opc.read('Node.'+self.items[index]))# read value
+                    break
+
+        except Exception:
+            values = -321.1
+        # return random.randint(-20, 20)
+        return values
 
 
 class WS:
@@ -49,13 +75,13 @@ class WS:
 
     @timer(10)
     async def _read_temperature_task(self, item):
-        logger.info("read tempearture {}", item)
+        #logger.info("read tempearture {} \n", item)
         self._current_temperature[item] = await self.opc.get_temperature(item)
 
     @timer(10)
     async def _send_temperatures_task(self):
         for item, t in self._current_temperature.items():
-            logger.info("sending {} temperature {}", item, t)
+            #logger.info("sending {} temperature {} \n\n", item, t)
             await self.ws.send_json(dict(type="temperature", item=item, temperature=t))
 
     async def run(self):
@@ -76,7 +102,8 @@ class WS:
 
 
 async def main():
-    opc = OPC("Lectus.OPC.1", ["item1", "item2"])
+    opc = OPC("Lectus.OPC.1", ["CKT1", "CKT2", "CKT3", "CKT4", "CKT5", "CKT6",
+                               "CKT7", "CKT8", "CKT9", "CKT10", "CKT11", "CKT12"])
     ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
 

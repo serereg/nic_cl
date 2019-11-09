@@ -22,7 +22,7 @@ def main():
                 json = requests.get("https://api.ipify.org?format=json").json()
                 api.send_message(chat_id=r["message"]["chat"]["id"], text=json["ip"]) # read ip
                 print(json["ip"])
-                values = str(opc.read('Node.Item1'))# read value
+                values = str(opc.read('Request1.TIC1_YOn'))# read value
                 values = values + " dfa\n"
                 api.send_message(chat_id=r["message"]["chat"]["id"], text=values) 
                 print(values)
