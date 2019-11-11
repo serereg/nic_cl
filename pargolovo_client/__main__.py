@@ -2,49 +2,75 @@ import asyncio
 import functools
 import collections
 
-
+#for import Cooler
 import sys
 import os
 sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
 from Cooler import Cooler
 #from ../../srv/pargolovo_server/ajax_sample import Cooler
 
-
+#for workin with opc
 import OpenOPC
 import pywintypes
 from aiohttp import ClientSession
 from loguru import logger
 
 
+# for working with telegram
+import traceback
+import time
+
+import siotelegram
+import requests
+
+
+TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
+# telegram init
+api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9150")
+
 class OPC:
     def __init__(self, base_name, items):
         self.base_name = base_name
         self.items = items
         self.coolers_arr = [Cooler(c) for c in range(1, 13)]
-        # self.coolers_arr = [Cooler(1), Cooler(2), Cooler(3), Cooler(4), Cooler(5), Cooler(6), Cooler(7), Cooler(8), Cooler(9), Cooler(10), Cooler(11), Cooler(12)]
         # Connect to OPC
         pywintypes.datetime=pywintypes.TimeType
         self.opc = OpenOPC.client()
         self.opc.connect(base_name)
 
     async def get_temperature(self, index):
-        # import random
-        values = 123
         try:
-            for c in range(1, 13):
-                #print(self.coolers_arr[c].name)
-                if self.coolers_arr[c].name == index:
-                    #print(self.coolers_arr[c].pv.TagName)
-                    opc_package = self.opc.read(self.coolers_arr[c].pv.TagName)
-                    values = opc_package[0]  # self.coo.GetPV()  # str(opc.read('Node.'+self.items[index]))# read value
+            for c in self.coolers_arr:
+                if c.name == index:
+                    opc_package = self.opc.read(c.pv.TagName)
+                    if (opc_package[1] == 'Good'):
+                        c.pv.Value = opc_package[0]
+                        c.pv.Fault = False
+                    else:
+                        c.pv.Value = -111.1
+                        c.pv.Fault = True
+
+                    opc_package = self.opc.read(c.TagSP)
+                    if (opc_package[1] == 'Good'):
+                        c.sp = opc_package[0]
+                    else:
+                        c.sp = -111.1
+
+                    # opc_package = self.opc.read(c.TagState)
+                    # if (opc_package[1] == 'Good'):
+                    #     c.State = opc_package[0]
+                    # else:
+                    #     c.State = -666.6
                     break
-
+                
         except Exception:
-            values = -321.1
-        # return random.randint(-20, 20)
-        return values
-
-
+            print('exception opc get_temperature')
+            c.pv.Value = -321.1
+            c.pv.Fault = True
+            c.sp = -321.1
+            c.State = -321.1
+        return c.pv.Value
+  
 class WS:
 
     def timer(interval):
@@ -67,6 +93,7 @@ class WS:
         self.opc = opc
         self.ws = None
         self._current_temperature = collections.defaultdict(lambda: None)
+        self.home_id = None
 
     @timer(10)
     async def _receive_commands_task(self):
@@ -75,7 +102,7 @@ class WS:
 
     @timer(10)
     async def _read_temperature_task(self, item):
-        #logger.info("read tempearture {} \n", item)
+        # logger.info("read tempearture {} \n", item)
         self._current_temperature[item] = await self.opc.get_temperature(item)
 
     @timer(10)
@@ -84,12 +111,44 @@ class WS:
             #logger.info("sending {} temperature {} \n\n", item, t)
             await self.ws.send_json(dict(type="temperature", item=item, temperature=t))
 
+    @timer(5)
+    async def _send_temperatures_to_telegram(self):
+        values = ''
+        i = 0
+        for item, t in self._current_temperature.items():
+            values = values + item + " T= " + str(self.opc.coolers_arr[i].pv.Value) + '\n'
+            if self.opc.coolers_arr[i].pv.Value != self.opc.coolers_arr[i].sp or self.opc.coolers_arr[i].pv.Fault:
+                if not self.opc.coolers_arr[i].Alarm:
+                    api.send_message(chat_id=self.home_id, text=self.opc.coolers_arr[i].name + " T= " + str(self.opc.coolers_arr[i].pv.Value))
+                self.opc.coolers_arr[i].Alarm = True
+            else:
+                self.opc.coolers_arr[i].Alarm = False
+            i = i + 1
+
+        try:
+            response = api.get_updates()
+
+            for r in response["result"]:
+                json = requests.get("https://api.ipify.org?format=json").json()
+                api.send_message(chat_id=r["message"]["chat"]["id"], text=json["ip"])  # read ip
+                print(json["ip"])
+                # values = str(opc.read('Request1.TIC1_YOn'))# read value
+                api.send_message(chat_id=r["message"]["chat"]["id"], text=values)
+                self.home_id = r["message"]["chat"]["id"]
+                print(values)
+
+        except Exception:
+            traceback.print_exc()
+        time.sleep(1)
+
     async def run(self):
         async with ClientSession() as session:
             async with session.ws_connect(self.url) as self.ws:
                 self.tasks = [
                     asyncio.create_task(self._receive_commands_task()),
                     asyncio.create_task(self._send_temperatures_task()),
+
+                    asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
                 ]
                 for item in self.opc.items:
                     self.tasks.extend([
@@ -102,6 +161,8 @@ class WS:
 
 
 async def main():
+
+    
     opc = OPC("Lectus.OPC.1", ["CKT1", "CKT2", "CKT3", "CKT4", "CKT5", "CKT6",
                                "CKT7", "CKT8", "CKT9", "CKT10", "CKT11", "CKT12"])
     ws = WS("http://localhost:8080/ws/opc", opc)
