@@ -96,17 +96,17 @@ class WS:
         self.home_id = None
 
     @timer(10)
-    async def _receive_commands_task(self):
+    async def _receive_commands_from_web_srv_task(self):
         async for msg in self.ws:
             logger.info("opc command {}", msg.data)
 
     @timer(10)
-    async def _read_temperature_task(self, item):
+    async def _read_opc_task(self, item):
         # logger.info("read tempearture {} \n", item)
         self._current_temperature[item] = await self.opc.get_temperature(item)
 
     @timer(10)
-    async def _send_temperatures_task(self):
+    async def _send_temperature_to_web_srv_task(self):
         for item, t in self._current_temperature.items():
             #logger.info("sending {} temperature {} \n\n", item, t)
             await self.ws.send_json(dict(type="temperature", item=item, temperature=t))
@@ -115,6 +115,9 @@ class WS:
     async def _send_temperatures_to_telegram(self):
         values = ''
         i = 0
+        
+        response = api.get_updates()
+
         for item, t in self._current_temperature.items():
             values = values + item + " T= " + str(self.opc.coolers_arr[i].pv.Value) + '\n'
             if self.opc.coolers_arr[i].pv.Value != self.opc.coolers_arr[i].sp or self.opc.coolers_arr[i].pv.Fault:
@@ -124,10 +127,7 @@ class WS:
             else:
                 self.opc.coolers_arr[i].Alarm = False
             i = i + 1
-
         try:
-            response = api.get_updates()
-
             for r in response["result"]:
                 json = requests.get("https://api.ipify.org?format=json").json()
                 api.send_message(chat_id=r["message"]["chat"]["id"], text=json["ip"])  # read ip
@@ -145,14 +145,14 @@ class WS:
         async with ClientSession() as session:
             async with session.ws_connect(self.url) as self.ws:
                 self.tasks = [
-                    asyncio.create_task(self._receive_commands_task()),
-                    asyncio.create_task(self._send_temperatures_task()),
+                    asyncio.create_task(self._receive_commands_from_web_srv_task()),
+                    asyncio.create_task(self._send_temperature_to_web_srv_task()),
 
                     asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
                 ]
                 for item in self.opc.items:
                     self.tasks.extend([
-                        asyncio.create_task(self._read_temperature_task(item)),
+                        asyncio.create_task(self._read_opc_task(item)),
                     ])
                 await asyncio.wait(self.tasks)
                 for t in self.tasks:
