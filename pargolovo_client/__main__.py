@@ -45,46 +45,69 @@ class OPC:
     def __init__(self, base_name, items):
         self.base_name = base_name
         self.items = items
-        self.coolers_arr = [Cooler(c) for c in range(1, 13)]
+        self.coolers_arr = [Cooler(c) for c in range(1, len(items) + 1)]
         # Connect to OPC
-        pywintypes.datetime=pywintypes.TimeType
-        # self.opc = OpenOPC.client()
-        # self.opc.connect(base_name)
+        pywintypes.datetime = pywintypes.TimeType
+        self.opc = OpenOPC.client()
+        print(self.opc.servers())
+        self.opc.connect(base_name)
 
-    @run_in_executor
-    def get_temperature(self, index):
+    #  @run_in_executor
+    def get_temperature(self, c_index):
         try:
-            for c in self.coolers_arr:
-                if c.name == index:
-                    opc_package = self.opc.read(c.pv.TagName)
-                    if (opc_package[1] == 'Good'):
-                        c.pv.Value = opc_package[0]
-                        c.pv.Fault = False
-                    else:
-                        c.pv.Value = -111.1
-                        c.pv.Fault = True
+            # for c in self.coolers_arr:
+            #     if c.name == index:
+                    # print(c.pv.TagName + '\n')
+            opc_package = self.opc.read(c_index.pv.TagName)
+            print(opc_package)
+            if opc_package[1] == 'Good':
+                c_index.pv.Value = opc_package[0]
+                c_index.pv.Fault = False
+            else:
+                c_index.pv.Value = -111.1
+                c_index.pv.Fault = True
 
-                    opc_package = self.opc.read(c.TagSP)
-                    if (opc_package[1] == 'Good'):
-                        c.sp = opc_package[0]
-                    else:
-                        c.sp = -111.1
+            opc_package = self.opc.read(c_index.TagSP)
+            if opc_package[1] == 'Good':
+                c_index.sp = opc_package[0]
+            else:
+                c_index.sp = -111.1
 
                     # opc_package = self.opc.read(c.TagState)
                     # if (opc_package[1] == 'Good'):
                     #     c.State = opc_package[0]
                     # else:
                     #     c.State = -666.6
-                    break
-                
+                    # break
+
         except Exception:
-            # print('exception opc get_temperature')
-            c.pv.Value = -321.1
-            c.pv.Fault = True
-            c.sp = -321.1
-            c.State = -321.1
-        return c.pv.Value
-  
+            traceback.print_exc()
+            c_index.pv.Value = -321.1
+            c_index.pv.Fault = True
+            c_index.sp = -321.1
+            c_index.State = -321.1
+        return c_index.pv.Value
+
+    def write_sp(self, sp, target):
+        for c in self.coolers_arr:
+            if c.name == target:
+                c.SetSP(sp)
+                self.opc.write((c.TagSP, c.sp))
+
+    def write_cmd_on(self, target):
+        for c in self.coolers_arr:
+            if c.name == target:
+                c.YOn()
+                self.opc.write((c.TagYOn, c.StateOn))
+                self.opc.write((c.TagYOff, not c.StateOn))
+
+    def write_cmd_off(self, target):
+        for c in self.coolers_arr:
+            if c.name == target:
+                c.YOff()
+                self.opc.write((c.TagYOn, not c.StateOn))
+                self.opc.write((c.TagYOff, c.StateOn))
+
 class WS:
 
     def timer(interval):
@@ -120,18 +143,18 @@ class WS:
                 continue
             command = data["command"]
             if command == "set_sp":
-                pass
+                self.opc.write_sp(data["value"], data["target"])
             elif command == "YOn":
-                pass
+                self.opc.write_cmd_on(data["target"])
             elif command == "YOff":
-                pass
+                self.opc.write_cmd_off(data["target"])
             else:
                 logger.error("Unsupported command {}", command)
 
     @timer(10)
-    async def _read_opc_task(self, item):
+    async def _read_opc_task(self, c_index):
         # logger.info("read tempearture {} \n", item)
-        self._current_temperature[item] = await self.opc.get_temperature(item)
+        self._current_temperature[c_index.name] = self.opc.get_temperature(c_index)  #  await
 
     @timer(10)
     async def _send_temperature_to_web_srv_task(self):
@@ -144,17 +167,18 @@ class WS:
     async def _send_temperatures_to_telegram(self):
         values = ''
         i = 0
-        
+
         response = api.get_updates()
 
         for item, t in self._current_temperature.items():
-            values = values + item + " T= " + str(self.opc.coolers_arr[i].pv.Value) + '\n'
-            if self.opc.coolers_arr[i].pv.Value != self.opc.coolers_arr[i].sp or self.opc.coolers_arr[i].pv.Fault:
-                if not self.opc.coolers_arr[i].Alarm:
-                    api.send_message(chat_id=self.home_id, text=self.opc.coolers_arr[i].name + " T= " + str(self.opc.coolers_arr[i].pv.Value))
-                self.opc.coolers_arr[i].Alarm = True
+            cur_cooler = self.opc.coolers_arr[i]
+            values = values + item + " T= " + str(cur_cooler.pv.Value) + '\n'
+            if cur_cooler.pv.Value != cur_cooler.sp or cur_cooler.pv.Fault:
+                if not cur_cooler.Alarm:
+                    api.send_message(chat_id=self.home_id, text=cur_cooler.name + " T= " + str(cur_cooler.pv.Value))
+                cur_cooler.Alarm = True
             else:
-                self.opc.coolers_arr[i].Alarm = False
+                cur_cooler.Alarm = False
             i = i + 1
         try:
             for r in response["result"]:
@@ -192,9 +216,9 @@ class WS:
 
             asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
-        for item in self.opc.items:
+        for c_item in self.opc.coolers_arr:
             self.tasks.extend([
-                asyncio.create_task(self._read_opc_task(item)),
+                asyncio.create_task(self._read_opc_task(c_item)),
             ])
 
         await asyncio.wait(self.tasks)
@@ -205,10 +229,10 @@ class WS:
 
 async def main():
 
-    
+
     opc = OPC("Lectus.OPC.1", ["CKT1", "CKT2", "CKT3", "CKT4", "CKT5", "CKT6",
-                               "CKT7", "CKT8", "CKT9", "CKT10", "CKT11", "CKT12"])
-    ws = WS("http://localhost:8080/ws/opc", opc)
+                               "CKT7", "CKT8"])  # , "CKT9", "CKT10", "CKT11", "CKT12"
+    ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
