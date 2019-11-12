@@ -3,6 +3,7 @@ import functools
 import collections
 
 #for import Cooler
+import json
 import sys
 import os
 sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
@@ -19,14 +20,26 @@ from loguru import logger
 # for working with telegram
 import traceback
 import time
+import sys
 
 import siotelegram
 import requests
 
 
+# logger.add(sys.stderr)
+
 TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
 # telegram init
 api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9150")
+
+
+def run_in_executor(f):
+    @functools.wraps(f)
+    async def wrapper(*args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, f, *args, **kwargs)
+    return wrapper
+
 
 class OPC:
     def __init__(self, base_name, items):
@@ -35,10 +48,11 @@ class OPC:
         self.coolers_arr = [Cooler(c) for c in range(1, 13)]
         # Connect to OPC
         pywintypes.datetime=pywintypes.TimeType
-        self.opc = OpenOPC.client()
-        self.opc.connect(base_name)
+        # self.opc = OpenOPC.client()
+        # self.opc.connect(base_name)
 
-    async def get_temperature(self, index):
+    @run_in_executor
+    def get_temperature(self, index):
         try:
             for c in self.coolers_arr:
                 if c.name == index:
@@ -64,7 +78,7 @@ class OPC:
                     break
                 
         except Exception:
-            print('exception opc get_temperature')
+            # print('exception opc get_temperature')
             c.pv.Value = -321.1
             c.pv.Fault = True
             c.sp = -321.1
@@ -94,11 +108,25 @@ class WS:
         self.ws = None
         self._current_temperature = collections.defaultdict(lambda: None)
         self.home_id = None
+        self._ws_connected = asyncio.Event()
 
     @timer(10)
     async def _receive_commands_from_web_srv_task(self):
+        logger.info("enter command handler")
         async for msg in self.ws:
             logger.info("opc command {}", msg.data)
+            data = json.loads(msg.data)
+            if data["type"] != "command":
+                continue
+            command = data["command"]
+            if command == "set_sp":
+                pass
+            elif command == "YOn":
+                pass
+            elif command == "YOff":
+                pass
+            else:
+                logger.error("Unsupported command {}", command)
 
     @timer(10)
     async def _read_opc_task(self, item):
@@ -110,6 +138,7 @@ class WS:
         for item, t in self._current_temperature.items():
             #logger.info("sending {} temperature {} \n\n", item, t)
             await self.ws.send_json(dict(type="temperature", item=item, temperature=t))
+            # await self.ws.send_json(dict(type="temperature2", item=item, temperature=t))
 
     @timer(5)
     async def _send_temperatures_to_telegram(self):
@@ -141,23 +170,37 @@ class WS:
             traceback.print_exc()
         time.sleep(1)
 
-    async def run(self):
+    @timer(0)
+    async def _ensure_web_socket(self):
         async with ClientSession() as session:
             async with session.ws_connect(self.url) as self.ws:
-                self.tasks = [
-                    asyncio.create_task(self._receive_commands_from_web_srv_task()),
-                    asyncio.create_task(self._send_temperature_to_web_srv_task()),
+                self._ws_connected.set()
+                logger.info("web socket ready")
+                while True:
+                    await asyncio.sleep(0.1)
+                    if self.ws.closed:
+                        return
 
-                    asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
-                ]
-                for item in self.opc.items:
-                    self.tasks.extend([
-                        asyncio.create_task(self._read_opc_task(item)),
-                    ])
-                await asyncio.wait(self.tasks)
-                for t in self.tasks:
-                    t.cancel()
-                await asyncio.wait(self.tasks)
+    async def run(self):
+        self.tasks = [
+            asyncio.create_task(self._ensure_web_socket()),
+        ]
+        await self._ws_connected.wait()
+        self.tasks.extend([
+            asyncio.create_task(self._receive_commands_from_web_srv_task()),
+            asyncio.create_task(self._send_temperature_to_web_srv_task()),
+
+            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+        ])
+        for item in self.opc.items:
+            self.tasks.extend([
+                asyncio.create_task(self._read_opc_task(item)),
+            ])
+
+        await asyncio.wait(self.tasks)
+        for t in self.tasks:
+            t.cancel()
+        await asyncio.wait(self.tasks)
 
 
 async def main():
