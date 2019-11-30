@@ -4,13 +4,13 @@ import collections
 
 #for import Cooler
 import json
-import sys
-import os
-sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
+# import sys
+# import os
+# sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
 from Cooler import Cooler
-#from ../../srv/pargolovo_server/ajax_sample import Cooler
+# from ../../srv/pargolovo_server/ajax_sample import Cooler
 
-#for workin with opc
+# for workin with opc
 import OpenOPC
 import pywintypes
 from aiohttp import ClientSession
