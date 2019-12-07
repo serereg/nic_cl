@@ -4,15 +4,9 @@ import collections
 
 #for import Cooler
 import json
-# import sys
-# import os
-# sys.path.append(os.path.abspath("../../srv/pargolovo_server/ajax_sample"))
 from Cooler import Cooler
-# from ../../srv/pargolovo_server/ajax_sample import Cooler
+from opc import OPC
 
-# for workin with opc
-import OpenOPC
-import pywintypes
 from aiohttp import ClientSession
 from loguru import logger
 
@@ -31,82 +25,6 @@ import requests
 TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
 # telegram init
 api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9150")
-
-
-def run_in_executor(f):
-    @functools.wraps(f)
-    async def wrapper(*args, **kwargs):
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, f, *args, **kwargs)
-    return wrapper
-
-
-class OPC:
-    def __init__(self, base_name, items):
-        self.base_name = base_name
-        self.items = items
-        self.coolers_arr = [Cooler(c) for c in range(1, len(items) + 1)]
-        # Connect to OPC
-        pywintypes.datetime = pywintypes.TimeType
-        self.opc = OpenOPC.client()
-        print(self.opc.servers())
-        self.opc.connect(base_name)
-
-    #  @run_in_executor
-    def get_temperature(self, c_index):
-        try:
-            # for c in self.coolers_arr:
-            #     if c.name == index:
-                    # print(c.pv.TagName + '\n')
-            opc_package = self.opc.read(c_index.pv.TagName)
-            print(opc_package)
-            if opc_package[1] == 'Good':
-                c_index.pv.Value = opc_package[0]
-                c_index.pv.Fault = False
-            else:
-                c_index.pv.Value = -111.1
-                c_index.pv.Fault = True
-
-            opc_package = self.opc.read(c_index.TagSP)
-            if opc_package[1] == 'Good':
-                c_index.sp = opc_package[0]
-            else:
-                c_index.sp = -111.1
-
-                    # opc_package = self.opc.read(c.TagState)
-                    # if (opc_package[1] == 'Good'):
-                    #     c.State = opc_package[0]
-                    # else:
-                    #     c.State = -666.6
-                    # break
-
-        except Exception:
-            traceback.print_exc()
-            c_index.pv.Value = -321.1
-            c_index.pv.Fault = True
-            c_index.sp = -321.1
-            c_index.State = -321.1
-        return c_index.pv.Value
-
-    def write_sp(self, sp, target):
-        for c in self.coolers_arr:
-            if c.name == target:
-                c.SetSP(sp)
-                self.opc.write((c.TagSP, c.sp))
-
-    def write_cmd_on(self, target):
-        for c in self.coolers_arr:
-            if c.name == target:
-                c.YOn()
-                self.opc.write((c.TagYOn, c.StateOn))
-                self.opc.write((c.TagYOff, not c.StateOn))
-
-    def write_cmd_off(self, target):
-        for c in self.coolers_arr:
-            if c.name == target:
-                c.YOff()
-                self.opc.write((c.TagYOn, not c.StateOn))
-                self.opc.write((c.TagYOff, c.StateOn))
 
 class WS:
 
@@ -138,6 +56,7 @@ class WS:
         logger.info("enter command handler")
         async for msg in self.ws:
             logger.info("opc command {}", msg.data)
+            print(msg.data)
             data = json.loads(msg.data)
             if data["type"] != "command":
                 continue
@@ -230,9 +149,9 @@ class WS:
 async def main():
 
 
-    opc = OPC("Lectus.OPC.1", ["CKT1", "CKT2", "CKT3", "CKT4", "CKT5", "CKT6",
-                               "CKT7", "CKT8"])  # , "CKT9", "CKT10", "CKT11", "CKT12"
+    opc = OPC("InSAT.ModbusOPCServer.DA", ["CKT1", "CKT2", "CKT3"])  # , "CKT9", "CKT10", "CKT11", "CKT12"
     ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
+    #ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
