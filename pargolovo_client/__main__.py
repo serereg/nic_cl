@@ -149,7 +149,7 @@ class WS:
 async def main():
 
 
-    opc = OPC("InSAT.ModbusOPCServer.DA", ["CKT1", "CKT2", "CKT3"])  # , "CKT9", "CKT10", "CKT11", "CKT12"
+    opc = OPC("localhost", range(12))  # , "CKT9", "CKT10", "CKT11", "CKT12"
     ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
     #ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
