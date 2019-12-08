@@ -77,11 +77,17 @@ class WS:
 
     @timer(10)
     async def _send_temperature_to_web_srv_task(self):
-        for item, t in self._current_temperature.items():
+        #for item, t in self._current_temperature.items():
             #logger.info("sending {} temperature {} \n\n", item, t)
-            await self.ws.send_json(dict(type="temperature", item=item, temperature=t))
-            # await self.ws.send_json(dict(type="temperature2", item=item, temperature=t))
-
+        #    await self.ws.send_json(dict(type="temperature", item=item, temperature=t, sp=1.2))
+        #    print(item)
+        #for item, t in self._current_temperature.items():
+        #    await self.ws.send_json(dict(type="setpoint", item=item, sp=t))
+        #print('--------------------')
+        for c_item in self.opc.coolers_arr:
+            await self.ws.send_json(dict(type="temperature", item=c_item.name, temperature=c_item.GetPV(), sp=c_item.sp, is_on=c_item.isOn()))
+            print(c_item.name, ', pv', c_item.GetPV(), ', sp', c_item.sp, ', isOn', c_item.isOn())
+            
     @timer(5)
     async def _send_temperatures_to_telegram(self):
         values = ''
@@ -133,7 +139,7 @@ class WS:
             asyncio.create_task(self._receive_commands_from_web_srv_task()),
             asyncio.create_task(self._send_temperature_to_web_srv_task()),
 
-            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+            # asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
         for c_item in self.opc.coolers_arr:
             self.tasks.extend([
@@ -149,9 +155,9 @@ class WS:
 async def main():
 
 
-    opc = OPC("localhost", range(12))  # , "CKT9", "CKT10", "CKT11", "CKT12"
-    ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
-    #ws = WS("http://localhost:8080/ws/opc", opc)
+    opc = OPC("localhost", range(12)) 
+    #ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
+    ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
