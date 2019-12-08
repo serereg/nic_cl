@@ -50,7 +50,7 @@ class WS:
         self._current_temperature = collections.defaultdict(lambda: None)
         self.home_id = None
         self._ws_connected = asyncio.Event()
-
+        self.wdt = 0 # diagnostic timer
     @timer(10)
     async def _receive_commands_from_web_srv_task(self):
         logger.info("enter command handler")
@@ -77,16 +77,13 @@ class WS:
 
     @timer(10)
     async def _send_temperature_to_web_srv_task(self):
-        #for item, t in self._current_temperature.items():
-            #logger.info("sending {} temperature {} \n\n", item, t)
-        #    await self.ws.send_json(dict(type="temperature", item=item, temperature=t, sp=1.2))
-        #    print(item)
-        #for item, t in self._current_temperature.items():
-        #    await self.ws.send_json(dict(type="setpoint", item=item, sp=t))
-        #print('--------------------')
+        self.wdt = self.wdt + 1
+        if self.wdt > 10000 or self.wdt < 0:
+            self.wdt = 0
         for c_item in self.opc.coolers_arr:
-            await self.ws.send_json(dict(type="temperature", item=c_item.name, temperature=c_item.GetPV(), sp=c_item.sp, is_on=c_item.isOn()))
-            print(c_item.name, ', pv', c_item.GetPV(), ', sp', c_item.sp, ', isOn', c_item.isOn())
+            pack = dict(type="temperature", item=c_item.name, temperature=c_item.GetPV(), sp=c_item.sp, is_on=c_item.isOn(), state=c_item.State, wdt=self.wdt)
+            await self.ws.send_json(pack)
+            print(pack)
             
     @timer(5)
     async def _send_temperatures_to_telegram(self):

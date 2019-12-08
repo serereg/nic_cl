@@ -37,7 +37,10 @@ def run_in_executor(f):
     return wrapper
 
 class OPC:
-    
+    map_modbus_coils_on = [0,2,4,6,8,10,12,14,16,18,20,22]
+    map_modbus_pv = [2,6,10,14,18,22,26,30,34,38,42,46]
+    map_modbus_state = [3,7,11,15,19,23,27,31,35,39,43,47]
+    map_modbus_sp = [1,3,5,7,9,11,13,15,17,19,21,23,25]
     def __init__(self, host, items):
         self.host = host
         self.items = items
@@ -53,11 +56,13 @@ class OPC:
         try:
             if not self.opc.is_open():
                 if not self.opc.open():
-                    print("unable to connect to "+SERVER_HOST+":"+str(SERVER_PORT))
+                    str_err = "unable to connect to "+SERVER_HOST+":"+str(SERVER_PORT)
+                    raise Exception(str_err)
             
-            value = 0.0
             if self.opc.is_open():
-                value = self.opc.read_float_inp(c_index.num*2, 1)
+                
+                value = 0.0
+                value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
                 if value:
                     c_index.pv.Value = value[0]
                     c_index.pv.Fault = False
@@ -67,17 +72,27 @@ class OPC:
             
                
                 value = 0.0
-                value = self.opc.read_float(c_index.num*2-1, 1)
+                value = self.opc.read_float(self.map_modbus_sp[c_index.num-1], 1)
                 if value:
                     c_index.sp = value[0]
                 else:
                     c_index.sp = -111.1
-                # TODO: необходимо считывать состояние из слова, а не из команды
-                bits  = self.opc.read_coils((c_index.num-1)*2, 1)
-                if bits:
-                    c_index.StateOn = bits[0]
+
+                value = 0.0
+                value = self.opc.read_input_registers(self.map_modbus_state[c_index.num-1], 2)
+                if value:
+                    c_index.State = value[0] | (value[1] << 16)
                 else:
-                    c_index.StateOn = False
+                    c_index.State = 0
+                c_index.update_state_on()
+                c_index.isFault()
+                c_index.isAlarm()
+                # TODO: необходимо считывать состояние из слова, а не из команды
+                # bits  = self.opc.read_coils(self.map_modbus_coils_on[c_index.num-1], 1)
+                # if bits:
+                #     c_index.StateOn = bits[0]
+                # else:
+                #     c_index.StateOn = False
                 
             # print('pv', c_index.pv.Value, ', isFault', c_index.pv.Fault, ', sp', c_index.sp)
             
