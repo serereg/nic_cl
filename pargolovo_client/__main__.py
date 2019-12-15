@@ -95,7 +95,7 @@ class WS:
         for item, t in self._current_temperature.items():
             cur_cooler = self.opc.coolers_arr[i]
             values = values + item + " T= " + str(cur_cooler.pv.Value) + '\n'
-            if cur_cooler.pv.Value != cur_cooler.sp or cur_cooler.pv.Fault:
+            if cur_cooler.pv.Fault: # cur_cooler.pv.Value != cur_cooler.sp or 
                 if not cur_cooler.Alarm:
                     api.send_message(chat_id=self.home_id, text=cur_cooler.name + " T= " + str(cur_cooler.pv.Value))
                 cur_cooler.Alarm = True
@@ -136,7 +136,7 @@ class WS:
             asyncio.create_task(self._receive_commands_from_web_srv_task()),
             asyncio.create_task(self._send_temperature_to_web_srv_task()),
 
-            # asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
         for c_item in self.opc.coolers_arr:
             self.tasks.extend([
