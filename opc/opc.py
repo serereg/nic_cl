@@ -26,7 +26,7 @@ class FloatModbusClient(ModbusClient):
         b16_l = utils.long_list_to_word(b32_l)
         return self.write_multiple_registers(address, b16_l)
 
-SERVER_HOST = "localhost"
+SERVER_HOST = "192.168.0.240"
 SERVER_PORT = 502
 
 def run_in_executor(f):
@@ -37,7 +37,7 @@ def run_in_executor(f):
     return wrapper
 
 class OPC:
-    map_modbus_coils_on = [0,2,4,6,8,10,12,14,16,18,20,22]
+    map_modbus_coils_on = [1,3,5,7,9,11,13,15,17,19,21,23]
     map_modbus_pv = [2,6,10,14,18,22,26,30,34,38,42,46]
     map_modbus_state = [3,7,11,15,19,23,27,31,35,39,43,47]
     map_modbus_sp = [1,3,5,7,9,11,13,15,17,19,21,23,25]
@@ -48,7 +48,7 @@ class OPC:
         # Modbus
         self.opc = FloatModbusClient(host=self.host, port=SERVER_PORT, auto_open=True)
         # define modbus server host, port
-        self.opc.host(self.host)
+        self.opc.host(SERVER_HOST)
         self.opc.port(SERVER_PORT)
         
     #  @run_in_executor
@@ -61,14 +61,19 @@ class OPC:
             
             if self.opc.is_open():
                 
-                value = 0.0
+                value = []
                 value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
                 if value:
                     c_index.pv.Value = value[0]
                     c_index.pv.Fault = False
                 else:
-                    c_index.pv.Value = -111.1
-                    c_index.pv.Fault = True
+                    value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
+                    if value:
+                        c_index.pv.Value = value[0]
+                        c_index.pv.Fault = False
+                    else:
+                        c_index.pv.Value = -111.1
+                        c_index.pv.Fault = True
             
                
                 value = 0.0
@@ -113,20 +118,22 @@ class OPC:
             for c in self.coolers_arr:
                 if c.name == target:
                     c.SetSP(sp)
-                    self.opc.write_float(c.num*2-1, [float(c.sp)])
+                    self.opc.write_float(self.map_modbus_sp[c.num-1], [float(c.sp)]) # c.num*2-1
 
     def write_cmd_on(self, target):
         if self.opc.is_open():
             for c in self.coolers_arr:
                 if c.name == target:
+                    print(c.name, c.num, self.map_modbus_coils_on[c.num] )
                     c.YOn()
-                    self.opc.write_single_coil((c.num-1)*2, True)
-                    self.opc.write_single_coil((c.num-1)*2+1, False)
+                    self.opc.write_single_coil(self.map_modbus_coils_on[c.num-1], True)
+                    self.opc.write_single_coil(self.map_modbus_coils_on[c.num-1]+1, False)
                     
     def write_cmd_off(self, target):
         if self.opc.is_open():
             for c in self.coolers_arr:
                 if c.name == target:
+                    print(c.name, c.num, self.map_modbus_coils_on[c.num]+1 )
                     c.YOff()
-                    self.opc.write_single_coil((c.num-1)*2, False)
-                    self.opc.write_single_coil((c.num-1)*2+1, True)
+                    self.opc.write_single_coil(self.map_modbus_coils_on[c.num-1], False)
+                    self.opc.write_single_coil(self.map_modbus_coils_on[c.num-1]+1, True)

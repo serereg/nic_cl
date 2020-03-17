@@ -51,6 +51,10 @@ class WS:
         self.home_id = None
         self._ws_connected = asyncio.Event()
         self.wdt = 0 # diagnostic timer
+        self.telegram_alarms = [False,False,False,False, \
+                                False,False,False,False, \
+                                False,False,False,False, \
+                                False,False,False,False]
     @timer(10)
     async def _receive_commands_from_web_srv_task(self):
         logger.info("enter command handler")
@@ -95,13 +99,11 @@ class WS:
         for item, t in self._current_temperature.items():
             cur_cooler = self.opc.coolers_arr[i]
             values = values + item + " T= " + str(cur_cooler.pv.Value) + '\n'
-            if cur_cooler.pv.Fault: # cur_cooler.pv.Value != cur_cooler.sp or 
-                if not cur_cooler.Alarm:
-                    api.send_message(chat_id=self.home_id, text=cur_cooler.name + " T= " + str(cur_cooler.pv.Value))
-                cur_cooler.Alarm = True
-            else:
-                cur_cooler.Alarm = False
+            if self.telegram_alarms[i] == False and cur_cooler.Alarm == True:
+                api.send_message(chat_id=self.home_id, text=cur_cooler.name + ", T= " + str(cur_cooler.pv.Value) + ", SP= " + str(cur_cooler.sp))
+            self.telegram_alarms[i] = cur_cooler.Alarm
             i = i + 1
+            
         try:
             for r in response["result"]:
                 json = requests.get("https://api.ipify.org?format=json").json()
@@ -152,9 +154,9 @@ class WS:
 async def main():
 
 
-    opc = OPC("localhost", range(12)) 
-    #ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
-    ws = WS("http://localhost:8080/ws/opc", opc)
+    opc = OPC("localhost", range(8)) 
+    ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
+    #ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
