@@ -50,8 +50,7 @@ class OPCClient:
                 "state": cooler.State,
             }
 
-        async with ClientSession() as session, session.ws_connect(self.url) as ws:
-            ws.send_json(data)
+        self.ws.send_json(data)
 
     async def to_telegram(self):
         updates = self.telegram_client.get_updates()
@@ -72,6 +71,34 @@ class OPCClient:
         except Exception:
             traceback.print_exc()
         await asyncio.sleep(1)
+
+    async def update(self):
+        for cooler in self.opc.coolers_arr:
+            self.opc.get_temperature(cooler)  #  await
+
+    async def run(self):
+        # async with ClientSession() as session, session.ws_connect(self.url) as ws:
+        #     self.ws = ws
+
+        self.tasks = [
+            asyncio.create_task(self._ensure_web_socket()),
+        ]
+        await self._ws_connected.wait()
+        self.tasks.extend([
+            asyncio.create_task(self._receive_commands_from_web_srv_task()),
+            asyncio.create_task(self._send_temperature_to_web_srv_task()),
+
+            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+        ])
+        for c_item in self.opc.coolers_arr:
+            self.tasks.extend([
+                asyncio.create_task(self._read_opc_task(c_item)),
+            ])
+
+        await asyncio.wait(self.tasks)
+        for t in self.tasks:
+            t.cancel()
+        await asyncio.wait(self.tasks)
 
 
 
