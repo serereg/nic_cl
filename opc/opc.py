@@ -6,6 +6,7 @@ from pyModbusTCP.client import ModbusClient
 import time
 from pyModbusTCP import utils
 
+
 class FloatModbusClient(ModbusClient):
     def read_float(self, address, number=1):
         reg_l = self.read_holding_registers(address, number * 2)

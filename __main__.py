@@ -26,6 +26,55 @@ TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
 # telegram init
 api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9150")
 
+
+# https://github.com/torpyorg/torpy
+# torpy_socks -p 1050 --hops 3
+# https://github.com/torpyorg/torpy/blob/master/torpy/cli/socks.py#L168
+
+class OPCClient:
+    def __init__(self, url, opc, telegram_token):
+        self.url = url
+        self.opc = opc
+        self.ws = None
+        self.telegram_client = siotelegram.RequestsTelegramApi(telegram_token, timeout=10, proxy="socks5h://127.0.0.1:9150")
+        self.alarms = set()
+        self.chat_id = None
+    
+    async def to_server(self):
+        data = {"method": "state", "params": {}}
+        for cooler in self.opc.coolers_arr:
+            data["params"][cooler.name] = {
+                "temperature": cooler.pv.Value,
+                "sp": cooler.sp,
+                "is_on": cooler.isOn(),
+                "state": cooler.State,
+            }
+
+        async with ClientSession() as session, session.ws_connect(self.url) as ws:
+            ws.send_json(data)
+
+    async def to_telegram(self):
+        updates = self.telegram_client.get_updates()
+        values = []
+
+        for cooler in self.opc.coolers_arr:
+            text = f"{cooler.name}, T={cooler.pv.Value:.1f}, SP={cooler.sp:.1f}"
+            values.append(text)
+            if cooler.Alarm and cooler not in self.alarms:
+                self.telegram_client.send_message(chat_id=self.chat_id, text=text)
+            self.alarms.add(cooler) if cooler.Alarm else self.alarms.remove(cooler)
+
+        try:
+            for r in response["result"]:
+                self.telegram_client.send_message(chat_id=r["message"]["chat"]["id"], text="\n".join(values))
+                self.chat_id = r["message"]["chat"]["id"]
+
+        except Exception:
+            traceback.print_exc()
+        await asyncio.sleep(1)
+
+
+
 class WS:
 
     def timer(interval):
@@ -35,8 +84,8 @@ class WS:
                 while True:
                     try:
                         await f(*args, **kwargs)
-                    except asyncio.CancelledError:
-                        raise
+                    except asyncio.CancelledError as e:
+                        raise e
                     except Exception:
                         logger.exception("Exception in {}", f.__name__)
                     await asyncio.sleep(interval)
@@ -51,10 +100,8 @@ class WS:
         self.home_id = None
         self._ws_connected = asyncio.Event()
         self.wdt = 0 # diagnostic timer
-        self.telegram_alarms = [False,False,False,False, \
-                                False,False,False,False, \
-                                False,False,False,False, \
-                                False,False,False,False]
+        self.telegram_alarms = [False for _ in range(12)]
+
     @timer(10)
     async def _receive_commands_from_web_srv_task(self):
         logger.info("enter command handler")
@@ -120,14 +167,13 @@ class WS:
 
     @timer(0)
     async def _ensure_web_socket(self):
-        async with ClientSession() as session:
-            async with session.ws_connect(self.url) as self.ws:
-                self._ws_connected.set()
-                logger.info("web socket ready")
-                while True:
-                    await asyncio.sleep(0.1)
-                    if self.ws.closed:
-                        return
+        async with ClientSession() as session, session.ws_connect(self.url) as self.ws:
+            self._ws_connected.set()
+            logger.info("web socket ready")
+            while True:
+                await asyncio.sleep(0.1)
+                if self.ws.closed:
+                    return
 
     async def run(self):
         self.tasks = [
