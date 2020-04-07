@@ -1,6 +1,9 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 # for workin with opc
 import traceback
-from Cooler import Cooler
+from cooler.cooler import Cooler
 
 from pyModbusTCP.client import ModbusClient
 import time
@@ -48,10 +51,11 @@ class OPC:
         self.coolers_arr = [Cooler(c) for c in range(1, len(items) + 1)]
         # Modbus
         self.opc = FloatModbusClient(host=self.host, port=SERVER_PORT, auto_open=True)
+        self.opc.timeout(5)
         # define modbus server host, port
         self.opc.host(SERVER_HOST)
         self.opc.port(SERVER_PORT)
-        
+
     #  @run_in_executor
     def get_temperature(self, c_index):
         try:
@@ -59,46 +63,43 @@ class OPC:
                 if not self.opc.open():
                     str_err = "unable to connect to "+SERVER_HOST+":"+str(SERVER_PORT)
                     raise Exception(str_err)
-            
-            if self.opc.is_open():
-                
-                value = []
+
+            value = []
+            value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
+            if value:
+                c_index.pv.Value = value[0]
+                c_index.pv.Fault = False
+            else:
                 value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
                 if value:
                     c_index.pv.Value = value[0]
                     c_index.pv.Fault = False
                 else:
-                    value = self.opc.read_float_inp(self.map_modbus_pv[c_index.num-1], 1)
-                    if value:
-                        c_index.pv.Value = value[0]
-                        c_index.pv.Fault = False
-                    else:
-                        c_index.pv.Value = -111.1
-                        c_index.pv.Fault = True
-            
-               
-                value = 0.0
-                value = self.opc.read_float(self.map_modbus_sp[c_index.num-1], 1)
-                if value:
-                    c_index.sp = value[0]
-                else:
-                    c_index.sp = -111.1
+                    c_index.pv.Value = -111.1
+                    c_index.pv.Fault = True
 
-                value = 0.0
-                value = self.opc.read_input_registers(self.map_modbus_state[c_index.num-1], 2)
-                if value:
-                    c_index.State = value[0] | (value[1] << 16)
-                else:
-                    c_index.State = 0
-                c_index.update_state_on()
-                c_index.isFault()
-                c_index.isAlarm()
-                # TODO: необходимо считывать состояние из слова, а не из команды
-                # bits  = self.opc.read_coils(self.map_modbus_coils_on[c_index.num-1], 1)
-                # if bits:
-                #     c_index.StateOn = bits[0]
-                # else:
-                #     c_index.StateOn = False
+            value = 0.0
+            value = self.opc.read_float(self.map_modbus_sp[c_index.num-1], 1)
+            if value:
+                c_index.sp = value[0]
+            else:
+                c_index.sp = -111.1
+
+            value = 0.0
+            value = self.opc.read_input_registers(self.map_modbus_state[c_index.num-1], 2)
+            if value:
+                c_index.State = value[0] | (value[1] << 16)
+            else:
+                c_index.State = 0
+            c_index.update_state_on()
+            c_index.isFault()
+            c_index.isAlarm()
+            # TODO: необходимо считывать состояние из слова, а не из команды
+            # bits  = self.opc.read_coils(self.map_modbus_coils_on[c_index.num-1], 1)
+            # if bits:
+            #     c_index.StateOn = bits[0]
+            # else:
+            #     c_index.StateOn = False
                 
             # print('pv', c_index.pv.Value, ', isFault', c_index.pv.Fault, ', sp', c_index.sp)
             

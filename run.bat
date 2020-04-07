@@ -1,3 +1,3 @@
-"C:\Users\Stend\Desktop\Tor Browser\Browser\firefox.exe"
-timeout 3
+start /b torpy_socks -p 9050 --hops 3
+timeout 30
 python __main__.py

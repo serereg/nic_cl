@@ -1,11 +1,13 @@
 import asyncio
 import functools
 import collections
+from threading import Thread
 
 #for import Cooler
 import json
-from Cooler import Cooler
+from cooler.cooler import Cooler
 from opc import OPC
+from tor import TorSocketProcess
 
 from aiohttp import ClientSession
 from loguru import logger
@@ -22,9 +24,10 @@ import requests
 
 # logger.add(sys.stderr)
 
-TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
+# TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
+TOKEN = "1253538719:AAF06pCeyMULcR72MF_Mvd-3MjCHkzw0qIQ"
 # telegram init
-api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9150")
+api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.0.1:9050")
 
 
 # https://github.com/torpyorg/torpy
@@ -32,13 +35,14 @@ api = siotelegram.RequestsTelegramApi(TOKEN, timeout=10, proxy="socks5h://127.0.
 # https://github.com/torpyorg/torpy/blob/master/torpy/cli/socks.py#L168
 
 class OPCClient:
-    def __init__(self, url, opc, telegram_token):
+    def __init__(self, url, opc, telegram_token, chat_id):
         self.url = url
         self.opc = opc
         self.ws = None
-        self.telegram_client = siotelegram.RequestsTelegramApi(telegram_token, timeout=10, proxy="socks5h://127.0.0.1:9150")
+        self.telegram_client = siotelegram.RequestsTelegramApi(telegram_token, timeout=10, proxy="socks5h://127.0.0.1:9050")
         self.alarms = set()
-        self.chat_id = None
+        self.chat_id = chat_id
+        self.tor_client = TorClient()
     
     async def to_server(self):
         data = {"method": "state", "params": {}}
@@ -51,6 +55,10 @@ class OPCClient:
             }
 
         self.ws.send_json(data)
+
+    async def from_server(self):
+        async for message in self.ws:
+            pass
 
     async def to_telegram(self):
         updates = self.telegram_client.get_updates()
@@ -124,7 +132,7 @@ class WS:
         self.opc = opc
         self.ws = None
         self._current_temperature = collections.defaultdict(lambda: None)
-        self.home_id = None
+        self.home_id = "700566535"
         self._ws_connected = asyncio.Event()
         self.wdt = 0 # diagnostic timer
         self.telegram_alarms = [False for _ in range(12)]
@@ -148,10 +156,16 @@ class WS:
             else:
                 logger.error("Unsupported command {}", command)
 
-    @timer(10)
-    async def _read_opc_task(self, c_index):
+    def _read_opc_task(self, c_index):
         # logger.info("read tempearture {} \n", item)
-        self._current_temperature[c_index.name] = self.opc.get_temperature(c_index)  #  await
+        while self.read_opc_task_running:
+            try:
+                self._current_temperature[c_index.name] = self.opc.get_temperature(c_index)  #  await
+                print(self._current_temperature)
+            except Exception as e:
+                print("ERROR:", e)
+                pass
+            time.sleep(5)
 
     @timer(10)
     async def _send_temperature_to_web_srv_task(self):
@@ -168,6 +182,7 @@ class WS:
         values = ''
         i = 0
 
+        print("TELEGRAM COROUTINE")
         response = api.get_updates()
 
         for item, t in self._current_temperature.items():
@@ -177,16 +192,14 @@ class WS:
                 api.send_message(chat_id=self.home_id, text=cur_cooler.name + ", T= " + str(cur_cooler.pv.Value) + ", SP= " + str(cur_cooler.sp))
             self.telegram_alarms[i] = cur_cooler.Alarm
             i = i + 1
-            
+
         try:
             for r in response["result"]:
-                json = requests.get("https://api.ipify.org?format=json").json()
-                api.send_message(chat_id=r["message"]["chat"]["id"], text=json["ip"])  # read ip
-                print(json["ip"])
-                # values = str(opc.read('Request1.TIC1_YOn'))# read value
-                api.send_message(chat_id=r["message"]["chat"]["id"], text=values)
-                self.home_id = r["message"]["chat"]["id"]
+                print("RESULT OF TELEGRAM COROUTINE")
                 print(values)
+                # values = str(opc.read('Request1.TIC1_YOn'))# read value
+                api.send_message(chat_id=self.home_id, text=values)
+                print("SEND TO TELEGRAM")
 
         except Exception:
             traceback.print_exc()
@@ -213,10 +226,13 @@ class WS:
 
             asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
+
+        threads = []
+        self.read_opc_task_running = True
         for c_item in self.opc.coolers_arr:
-            self.tasks.extend([
-                asyncio.create_task(self._read_opc_task(c_item)),
-            ])
+            t = Thread(target=self._read_opc_task, args=(c_item,))
+            threads.append(t)
+            t.start()
 
         await asyncio.wait(self.tasks)
         for t in self.tasks:
@@ -228,9 +244,11 @@ async def main():
 
 
     opc = OPC("localhost", range(8)) 
-    ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
-    #ws = WS("http://localhost:8080/ws/opc", opc)
+    # ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
+    ws = WS("http://localhost:8080/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
+    process = TorSocketProcess()
+    process.start()
     asyncio.run(main())
