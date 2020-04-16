@@ -142,19 +142,19 @@ class WS:
         logger.info("enter command handler")
         async for msg in self.ws:
             logger.info("opc command {}", msg.data)
-            print(msg.data)
-            data = json.loads(msg.data)
-            if data["type"] != "command":
-                continue
-            command = data["command"]
-            if command == "set_sp":
-                self.opc.write_sp(data["value"], data["target"])
-            elif command == "YOn":
-                self.opc.write_cmd_on(data["target"])
-            elif command == "YOff":
-                self.opc.write_cmd_off(data["target"])
-            else:
-                logger.error("Unsupported command {}", command)
+            # print(msg.data)
+            # data = json.loads(msg.data)
+            # if data["type"] != "command":
+            #     continue
+            # command = data["command"]
+            # if command == "set_sp":
+            #     self.opc.write_sp(data["value"], data["target"])
+            # elif command == "YOn":
+            #     self.opc.write_cmd_on(data["target"])
+            # elif command == "YOff":
+            #     self.opc.write_cmd_off(data["target"])
+            # else:
+            #     logger.error("Unsupported command {}", command)
 
     def _read_opc_task(self, c_index):
         # logger.info("read tempearture {} \n", item)
@@ -173,7 +173,25 @@ class WS:
         if self.wdt > 10000 or self.wdt < 0:
             self.wdt = 0
         for c_item in self.opc.coolers_arr:
-            pack = dict(type="temperature", item=c_item.name, temperature=c_item.GetPV(), sp=c_item.sp, is_on=c_item.isOn(), state=c_item.State, wdt=self.wdt)
+            # pack = dict(type="temperature", 
+            #             item=c_item.name, 
+            #             temperature=c_item.GetPV(), 
+            #             sp=c_item.sp, 
+            #             is_on=c_item.isOn(), 
+            #             state=c_item.State, 
+            #             wdt=self.wdt)
+            # for c_item in range(8):
+            pack = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "state",
+                "params": {
+                    "item": c_item.name,
+                    "temperature": c_item.GetPV(),
+                    "set_point": c_item.sp,
+                    "state": c_item.State,
+                },
+            }
             await self.ws.send_json(pack)
             print(pack)
             
@@ -224,7 +242,7 @@ class WS:
             asyncio.create_task(self._receive_commands_from_web_srv_task()),
             asyncio.create_task(self._send_temperature_to_web_srv_task()),
 
-            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+            # asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
 
         threads = []
@@ -232,7 +250,7 @@ class WS:
         for c_item in self.opc.coolers_arr:
             t = Thread(target=self._read_opc_task, args=(c_item,))
             threads.append(t)
-            t.start()
+            # t.start()
 
         await asyncio.wait(self.tasks)
         for t in self.tasks:
@@ -245,7 +263,7 @@ async def main():
 
     opc = OPC("localhost", range(8)) 
     # ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
-    ws = WS("http://localhost:8080/ws/opc", opc)
+    ws = WS("http://localhost:80/ws/opc", opc)
     await ws.run()
 
 if __name__ == "__main__":
