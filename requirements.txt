@@ -5,3 +5,4 @@ pySocks
 requests
 siotelegram
 torpy
+jsonschema
