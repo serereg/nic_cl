@@ -2,7 +2,11 @@ from multiprocessing import Process
 
 from torpy.cli.socks import SocksServer
 from torpy.client import TorClient
+from threading import Thread
 
+import sys
+import time
+import traceback
 
 class TorSocketProcess(Process):
     def __init__(self, ip="127.0.0.1", port=9050, hops=3):
