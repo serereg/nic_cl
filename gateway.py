@@ -6,6 +6,7 @@ class Gateway:
         self.uri = uri
         self.opc = opc
         self.ws = None
+        self.wdt = 0
     
     @timer(0)
     async def check_ws(self):
@@ -17,13 +18,22 @@ class Gateway:
 
     @timer(5)
     async def to_server(self):
-        data = {"method": "state", "params": {}}
+        self.wdt += 1
+        if self.wdt > 10000 or self.wdt < 0:
+            self.wdt = 1
+        data = {
+            "jsonrpc": "2.0",
+            "id": self.wdt,
+            "method": "state",
+            "params": {},
+        }
         for cooler in self.opc.coolers:
             data["params"][cooler.name] = {
-                "temperature": cooler.pv.Value,
-                "sp": cooler.sp,
-                "is_on": cooler.isOn(),
+                "item": cooler.name,
+                "temperature": cooler.GetPV(),
+                "set_point": cooler.sp,
                 "state": cooler.State,
+                "wdt": self.wdt,
             }
 
         await self.ws.send_json(data)
@@ -32,9 +42,9 @@ class Gateway:
         async for message in self.ws:
             pass
 
-    async def run(self, loop):
+    def start(self, loop):
         return (
-            loop.create_task(self.check_ws),
-            loop.create_task(self.to_server),
-            loop.create_task(self.from_server),
+            loop.create_task(self.check_ws()),
+            loop.create_task(self.to_server()),
+            loop.create_task(self.from_server()),
         )

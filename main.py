@@ -18,7 +18,7 @@ if __name__ == "__main__":
     tor = None
     data = CONFIG["tor"]
     if data["enable"]:
-        tor = TorSocketProcess(host=data["host"], port=data["port"], hops=data["hops"])
+        tor = TorSocketProcess(ip=data["ip"], port=data["port"], hops=data["hops"])
         tor.start()
 
     telegram = None
@@ -35,4 +35,4 @@ if __name__ == "__main__":
         tasks.extend(telegram.start(loop))
     tasks.extend(gateway.start(loop))
 
-    loop.wait(tasks)
+    loop.run_until_complete(asyncio.wait(tasks))

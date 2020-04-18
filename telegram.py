@@ -6,7 +6,7 @@ from utils import timer
 class TelegramClient(Bot):
     def __init__(self, opc, token, chat_id, tor=None):
         if tor is not None:
-            proxy = f"socks5h://{tor.host}:{tor.port}"
+            proxy = f"socks5h://{tor.ip}:{tor.port}"
         else:
             proxy = None
 
@@ -31,7 +31,7 @@ class TelegramClient(Bot):
         for update in updates:
             await update.message.answer(text="\n".join(values))            
 
-    async def start(self, loop):
+    def start(self, loop):
         return (
             loop.create_task(self.update()),
         )

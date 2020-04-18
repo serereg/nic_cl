@@ -16,13 +16,14 @@ class OPC(Thread, ModbusClient):
     map_modbus_sp = (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
 
     def __init__(self, host, port, cooler_count):
-        super().__init__()
+        ModbusClient.__init__(self, host=host, port=port, auto_open=True)
+        Thread.__init__(self)
 
+        self._host = host
+        self._port = port
         self.coolers = [Cooler(c) for c in range(1, cooler_count+1)]
         # Modbus
         self.timeout(5)
-        self.host(host)
-        self.port(port)
         self.running = False
 
     def read_float(self, address, number=1):
@@ -45,7 +46,7 @@ class OPC(Thread, ModbusClient):
             try:
                 if not self.is_open():
                     if not self.open():
-                        str_err = f"unable to connect to {self.host}:{self.port}"
+                        str_err = f"unable to connect to {self._host}:{self._port}"
                         raise Exception(str_err)
 
                 for i in range(2):
