@@ -11,8 +11,6 @@ from OPCClient import OPCClient
 
 # logger.add(sys.stderr)
 
-# TOKEN = "955648204:AAGGyUALGcG7Xt3cwYB5hMY06_1-7vwoLk0"
-
 async def main():
     opc = OPC("localhost", range(8)) 
     # ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
@@ -20,6 +18,6 @@ async def main():
     await ws.run()
 
 if __name__ == "__main__":
-    # process = TorSocketProcess()
-    # process.start()
+    process = TorSocketProcess()
+    process.start()
     asyncio.run(main())

@@ -56,8 +56,6 @@ class WS(JSONRPCView):
     async def _receive_commands_from_web_srv_task(self):
         # logger.info("enter command handler")print(msg.data)
         async for message in self.ws:
-            # await self.ws.send_json(await self.handle(message.data, {}))
-            # await self.handle(message.data, {})
             result, response_required = await self.handle(message.data, {})
             if response_required:
                 await self.ws.send_json(result)
@@ -90,6 +88,16 @@ class WS(JSONRPCView):
                 pass
             time.sleep(5)
 
+    def read_all_sensors(self):
+        for c_item in self.opc.coolers_arr:
+            try:
+                self._current_temperature[c_item.name] = self.opc.get_temperature(c_item)
+                print(self._current_temperature)
+            except Exception as e:
+                print("ERROR:", e)
+                pass
+            time.sleep(1)
+
     @timer(10)
     async def _send_temperature_to_web_srv_task(self):
         self.wdt = self.wdt + 1
@@ -113,12 +121,13 @@ class WS(JSONRPCView):
             
     @timer(5)
     async def _send_temperatures_to_telegram(self):
-        values = ''
+        values = 'response\n'
         i = 0
 
         print("TELEGRAM COROUTINE")
         response = api.get_updates()
 
+        # TODO: use Jinja template 
         for item, t in self._current_temperature.items():
             cur_cooler = self.opc.coolers_arr[i]
             values = values + item + " T= " + str(cur_cooler.pv.Value) + '\n'
@@ -130,10 +139,7 @@ class WS(JSONRPCView):
         try:
             for r in response["result"]:
                 print("RESULT OF TELEGRAM COROUTINE")
-                # print(values)
-                # values = str(opc.read('Request1.TIC1_YOn'))# read value
-                api.send_message(chat_id=self.home_id, text=values)
-                # print("SEND TO TELEGRAM")
+                api.send_message(chat_id = self.home_id, text = values)
 
         except Exception:
             traceback.print_exc()
@@ -158,17 +164,21 @@ class WS(JSONRPCView):
             asyncio.create_task(self._receive_commands_from_web_srv_task()),
             asyncio.create_task(self._send_temperature_to_web_srv_task()),
 
-            # asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
+            asyncio.create_task(self._send_temperatures_to_telegram()), # telegram
         ])
 
         threads = []
         self.read_opc_task_running = True
-        for c_item in self.opc.coolers_arr:
-            t = Thread(target=self._read_opc_task, args=(c_item,))
-            threads.append(t)
-            # t.start()
+        # for c_item in self.opc.coolers_arr:
+        #     t = Thread(target=self._read_opc_task, args=(c_item,))
+        #     threads.append(t)
+        #     t.start()
+
+        
+        t = Thread(target=self.read_all_sensors)
+        t.start()
 
         await asyncio.wait(self.tasks)
         for t in self.tasks:
             t.cancel()
-        await asyncio.wait(self.tasks)
+        # await asyncio.wait(self.tasks)

@@ -9,6 +9,10 @@ from pyModbusTCP.client import ModbusClient
 import time
 from pyModbusTCP import utils
 
+STATE_IS_ON = 0
+STATE_IS_FAULT = 1
+STATE_IS_ALARM = 2
+
 
 class FloatModbusClient(ModbusClient):
     def read_float(self, address, number=1):
@@ -112,7 +116,7 @@ class OPC:
             c_index.pv.Value = -321.1
             c_index.pv.Fault = True
             c_index.sp = -321.1
-            c_index.State = -321.1
+            c_index.State = 0
         return c_index.pv.Value
 
     def write_sp(self, sp, target):
