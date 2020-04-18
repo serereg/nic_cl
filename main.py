@@ -1,23 +1,38 @@
 import asyncio
-from threading import Thread
 
+from config import CONFIG
 from cooler.cooler import Cooler
+from gateway import Gateway
 from opc import OPC
-
+from telegram import TelegramClient
 from tor import TorSocketProcess
 
-from WS import WS
-from OPCClient import OPCClient
-
-# logger.add(sys.stderr)
-
-async def main():
-    opc = OPC("localhost", range(8)) 
-    # ws = WS("http://serereg.hopto.org:8080/ws/opc", opc)
-    ws = WS("http://localhost:80/ws/opc", opc)
-    await ws.run()
 
 if __name__ == "__main__":
-    process = TorSocketProcess()
-    process.start()
-    asyncio.run(main())
+    opc = None
+    data = CONFIG["opc"]
+    if data["enable"]:
+        opc = OPC(host=data["host"], port=data["port"], cooler_count=8)
+        opc.start()
+
+    tor = None
+    data = CONFIG["tor"]
+    if data["enable"]:
+        tor = TorSocketProcess(host=data["host"], port=data["port"], hops=data["hops"])
+        tor.start()
+
+    telegram = None
+    data = CONFIG["telegram"]
+    if data["enable"]:
+        telegram = TelegramClient(opc=opc, token=data["token"], chat_id=data["chat_id"], tor=tor)
+
+    gateway = Gateway(uri=CONFIG["server"]["uri"], opc=opc)
+
+    loop = asyncio.get_event_loop()
+    tasks = []
+    
+    if telegram is not None:
+        tasks.extend(telegram.start(loop))
+    tasks.extend(gateway.start(loop))
+
+    loop.wait(tasks)

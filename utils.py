@@ -1,8 +1,25 @@
+import functools
 import json
 
 from aiohttp import web
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
+
+
+def timer(interval):
+    def decorator(f):
+        @functools.wraps(f)
+        async def wrapper(*args, **kwargs):
+            while True:
+                try:
+                    await f(*args, **kwargs)
+                except asyncio.CancelledError as e:
+                    raise e
+                except Exception:
+                    logger.exception("Exception in {}", f.__name__)
+                await asyncio.sleep(interval)
+        return wrapper
+    return decorator
 
 
 class HTTPView(web.View):

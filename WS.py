@@ -16,10 +16,6 @@ from threading import Thread
 import requests
 import siotelegram
 
-obj = {}
-with open("telegram.json", "rt") as f:
-    obj = json.load(f)
-
 # telegram init
 api = siotelegram.RequestsTelegramApi(obj["TOKEN"], timeout=10, proxy="socks5h://127.0.0.1:9050")
 

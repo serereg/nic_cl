@@ -1,0 +1,21 @@
+{
+    "opc": {
+        "enable": true,
+        "host": "127.0.0.1",
+        "port": 502
+    },
+    "server": {
+        "uri": "ws://localhost:80/ws/opc"
+    },
+    "telegram": {
+        "enable": true,
+        "token": "1253538719:AAF06pCeyMULcR72MF_Mvd-3MjCHkzw0qIQ",
+        "chat_id": "21323"
+    },
+    "tor": {
+        "enable": true,
+        "ip": "127.0.0.1",
+        "port": 9050,
+        "hops": 3
+    }
+}
