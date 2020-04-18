@@ -1,5 +1,6 @@
 from utils import timer
-
+from aiohttp import web, ClientSession
+import asyncio
 
 class Gateway:
     def __init__(self, uri, opc=None):
@@ -27,14 +28,16 @@ class Gateway:
             "method": "state",
             "params": {},
         }
-        for cooler in self.opc.coolers:
-            data["params"][cooler.name] = {
-                "item": cooler.name,
-                "temperature": cooler.GetPV(),
-                "set_point": cooler.sp,
-                "state": cooler.State,
-                "wdt": self.wdt,
-            }
+
+        if self.opc:
+            for cooler in self.opc.coolers:
+                data["params"][cooler.name] = {
+                    "item": cooler.name,
+                    "temperature": cooler.GetPV(),
+                    "set_point": cooler.sp,
+                    "state": cooler.State,
+                    "wdt": self.wdt,
+                }
 
         await self.ws.send_json(data)
 

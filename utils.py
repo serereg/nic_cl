@@ -2,10 +2,10 @@ import asyncio
 import functools
 import json
 
-from aiohttp import web
+from aiohttp import web, ClientSession
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
-
+from loguru import logger
 
 def timer(interval):
     def decorator(f):
