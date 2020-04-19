@@ -43,6 +43,7 @@ class OPC(Thread, ModbusClient):
 
     def update(self):
         for cooler in self.coolers:
+            
             try:
                 if not self.is_open():
                     if not self.open():
@@ -73,13 +74,15 @@ class OPC(Thread, ModbusClient):
                 # cooler.StateOn = bits[0] if bits else False
                     
                 # print('pv', cooler.pv.Value, ', isFault', cooler.pv.Fault, ', sp', cooler.sp)
-                    
+                
             except Exception:
-                traceback.print_exc()
+                # traceback.print_exc()
                 cooler.pv.Value = -321.1
                 cooler.pv.Fault = True
                 cooler.sp = -321.1
                 cooler.State = 0
+        
+        time.sleep(10)
 
     def run(self):
         self.running = True

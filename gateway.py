@@ -38,8 +38,22 @@ class Gateway:
                     "state": cooler.State,
                     "wdt": self.wdt,
                 }
+                
+                pack = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "state",
+                    "params": {
+                        "item": cooler.name,
+                        "temperature": cooler.GetPV(),
+                        "set_point": cooler.sp,
+                        "state": cooler.State,
+                        "wdt": self.wdt,
+                    },
+                }
+                await self.ws.send_json(pack)
 
-        await self.ws.send_json(data)
+        # await self.ws.send_json(data)
 
     async def from_server(self):
         async for message in self.ws:
