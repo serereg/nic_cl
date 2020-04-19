@@ -1,8 +1,8 @@
-from utils import timer
+from utils import timer, JSONRPCView
 from aiohttp import web, ClientSession
 import asyncio
 
-class Gateway:
+class Gateway(JSONRPCView):
     def __init__(self, uri, opc=None):
         self.uri = uri
         self.opc = opc
@@ -55,10 +55,32 @@ class Gateway:
 
         # await self.ws.send_json(data)
 
+    @timer(1)
     async def from_server(self):
         async for message in self.ws:
-            pass
+            result, response_required = await self.handle(message.data, {})
+            if response_required:
+                await self.ws.send_json(result)
 
+    # TODO: заменить на прямой вызов opc
+    async def command(self, id, switch):
+        print("command ok")
+        if self.opc:
+            if switch == "YOn":
+                self.opc.write_cmd_on(f"CKT{id}")
+            elif switch == "YOff":
+                self.opc.write_cmd_off(f"CKT{id}")
+            else:
+                logger.error("Unsupported command {}", command)
+        return "ok", None
+
+    # TODO: заменить на прямой вызов opc
+    async def set_point(self, id, set_point):
+        print("set_point ok")
+        if self.opc:
+            self.opc.write_sp(set_point, f"CKT{id}")
+        return "ok", None
+                
     def start(self, loop):
         return (
             loop.create_task(self.check_ws()),
