@@ -51,6 +51,7 @@ class Gateway(JSONRPCView):
                         "wdt": self.wdt,
                     },
                 }
+                print(pack)
                 await self.ws.send_json(pack)
 
         # await self.ws.send_json(data)

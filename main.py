@@ -26,7 +26,10 @@ if __name__ == "__main__":
     if data["enable"]:
         telegram = TelegramClient(opc=opc, token=data["token"], chat_id=data["chat_id"], tor=tor)
 
-    gateway = Gateway(uri=CONFIG["server"]["uri"], opc=opc)
+    gateway = None
+    data = CONFIG["server"]
+    if data["enable"]:
+        gateway = Gateway(uri=data["uri"], opc=opc)
 
     loop = asyncio.get_event_loop()
     tasks = []
