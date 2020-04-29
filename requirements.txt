@@ -11,6 +11,7 @@ idna==2.9
 jsonschema==3.2.0
 loguru==0.4.1
 multidict==4.7.5
+pkg-resources
 pycparser==2.20
 pyModbusTCP==0.1.8
 pyrsistent==0.16.0
@@ -20,6 +21,7 @@ requests==2.23.0
 rope==0.16.0
 siotelegram==1.1.0
 six==1.14.0
+socks
 torpy==1.0.10
 urllib3==1.25.9
 yarl==1.4.2
