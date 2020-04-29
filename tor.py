@@ -10,9 +10,9 @@ class TorSocketProcess(Process):
         self.ip = ip
         self.port = port
         self.hops = hops
-        self.client = TorClient()
 
     def run(self):
-        with self.client.create_circuit(self.hops) as circuit:
+        client = TorClient()
+        with client.create_circuit(self.hops) as circuit:
             with SocksServer(circuit, self.ip, self.port) as socks_serv:
                 socks_serv.start()

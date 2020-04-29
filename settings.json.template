@@ -5,6 +5,7 @@
         "port": 502
     },
     "server": {
+        "enable": true,
         "uri": "ws://localhost:80/ws/opc"
     },
     "telegram": {

@@ -36,6 +36,7 @@ if __name__ == "__main__":
     
     if telegram is not None:
         tasks.extend(telegram.start(loop))
-    tasks.extend(gateway.start(loop))
+    if gateway is not None:
+        tasks.extend(gateway.start(loop))
 
     loop.run_until_complete(asyncio.wait(tasks))
