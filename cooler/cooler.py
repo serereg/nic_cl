@@ -61,7 +61,7 @@ class Cooler:
         self.StateOn = self.is_set(self.State,0)
 
     def isFault(self):
-        self.pv.Fault = self.is_set(self.State,1)
+        self.pv.Fault = False  # self.is_set(self.State,1)
         return self.pv.Fault
 
     def isAlarm(self):
