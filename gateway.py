@@ -17,7 +17,7 @@ class Gateway(JSONRPCView):
                 if self.ws.closed:
                     return
 
-    @timer(5)
+    @timer(2)
     async def to_server(self):
         self.wdt += 1
         if self.wdt > 10000 or self.wdt < 0:
