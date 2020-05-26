@@ -28,31 +28,34 @@ class TelegramClient():
         values = ["response\n"]
         if self.opc:
             for cooler in self.opc.coolers:
-                text = f"{cooler.name}, T={cooler.pv.Value:.1f},    SP={cooler.sp:.1f}\n\n"
-                values.append(text)
+                alarm_event = cooler.Alarm or cooler.pv.Value < -10 or cooler.pv.Value > 30
 
-                if cooler.Alarm:
+                if alarm_event:
                     if cooler not in self.queue_alarms:
                         self.queue_alarms[cooler] = {"is_sended": False, 
                             "alarm_text": f"{cooler.name}, T={cooler.pv.Value:.1f}, SP={cooler.sp:.1f}"} 
                 else:
-                    if cooler in self.queue_alarms:
-                        if self.queue_alarms[cooler]["is_sended"]:
-                            del self.queue_alarms[cooler]
+                    if (cooler in self.queue_alarms and 
+                            (not alarm_event) and
+                            self.queue_alarms[cooler]["is_sended"]):
+                        del self.queue_alarms[cooler]
                         
         for cooler in self.queue_alarms:
             if not self.queue_alarms[cooler]["is_sended"]:
-                pass
                 # await self.send_message(chat_id=self.chat_id,
                 #    text=self.queue_alarms[cooler]["alarm_text"])
                 self.api.send_message(chat_id = self.chat_id, 
                     text = self.queue_alarms[cooler]["alarm_text"])
                 self.queue_alarms[cooler]["is_sended"] = True
 
+        if self.opc:
+            for cooler in self.opc.coolers:
+                text = f"{cooler.name}, T={cooler.pv.Value:.1f}, SP={cooler.sp:.1f}\n"
+                values.append(text)
+                
         for update in updates["result"]:
-            # print(update["message"]["chat"]["id"])
             self.api.send_message(chat_id = self.chat_id, text = "".join(values))
-            # await update.message.answer(text="\n".join(values))            
+            # await update.message.answer(text="\n".join(values))  
 
     def start(self, loop):
         return (

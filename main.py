@@ -13,7 +13,7 @@ if __name__ == "__main__":
     data = CONFIG["opc"]
     if data["enable"]:
         opc = OPC(host=data["host"], port=data["port"], cooler_count=8)
-        opc.start()
+        # opc.start()
 
     tor = None
     data = CONFIG["tor"]
@@ -34,6 +34,8 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     tasks = []
     
+    if opc is not None:
+        tasks.extend(opc.start(loop))
     if telegram is not None:
         tasks.extend(telegram.start(loop))
     if gateway is not None:
