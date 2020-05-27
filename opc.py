@@ -7,7 +7,7 @@ import traceback
 from cooler.cooler import Cooler
 from pyModbusTCP.client import ModbusClient
 from pyModbusTCP import utils
-
+from utils import timer
 
 # class OPC(Thread, ModbusClient):
 class OPC(ModbusClient):
@@ -25,7 +25,7 @@ class OPC(ModbusClient):
         self._port = port
         self.coolers = [Cooler(c) for c in range(1, cooler_count+1)]
         # Modbus
-        self.timeout(5)
+        self.timeout(2)
         self.running = False
 
     def read_float(self, address, number=1):

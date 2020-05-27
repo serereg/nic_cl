@@ -12,7 +12,7 @@ if __name__ == "__main__":
     opc = None
     data = CONFIG["opc"]
     if data["enable"]:
-        opc = OPC(host=data["host"], port=data["port"], cooler_count=8)
+        opc = OPC(host=data["host"], port=data["port"], cooler_count=12)
         # opc.start()
 
     tor = None
