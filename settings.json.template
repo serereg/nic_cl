@@ -10,7 +10,7 @@
     },
     "telegram": {
         "enable": true,
-        "token": "1253538719:AAF06pCeyMULcR72MF_Mvd-3MjCHkzw0qIQ",
+        "token": "1253538719:DelAAF06pCeyMULcR72MF_Mvd-3MjCHkzw0qIQ",
         "chat_id": "700566535"
     },
     "tor": {
